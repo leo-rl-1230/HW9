@@ -1,0 +1,146 @@
+---
+title: "HW9"
+author: "Leonardo Robles-Lara"
+date: "2024-04-15"
+output:
+  html_document:
+    theme: darkly
+    toc: true
+    toc_depth: 3 
+    toc_float:
+      collapsed: true
+---
+
+[Click here for Github link](https://github.com/leo-rl-1230/HW2.git)
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,      # Display code in output
+  message = FALSE,  # Suppress messages in output
+  warning = FALSE   # Suppress warnings in output
+)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(mosaic)
+library(MatchIt)
+library(tableone)
+turnout <- read.csv("/Users/leo.rl/Downloads/turnout.csv")  
+solder <- read.csv("/Users/leo.rl/Downloads/solder.csv")
+```
+
+# **Question 1**
+
+## Part A
+
+```{r, echo = FALSE}
+prop_1 <- mean(turnout$GOTV_call == 1 & turnout$voted1998 == 1)
+prop_2 <- mean(turnout$GOTV_call == 0 & turnout$voted1998 == 1)
+
+prop_3 <- prop_1 - prop_2
+
+prop_function <- function(turnout) {
+  new_prop_1 <- mean(turnout$GOTV_call == 1 & turnout$voted1998 == 1)
+  new_prop_2 <- mean(turnout$GOTV_call == 0 & turnout$voted1998 == 1)
+  return(new_prop_1 - new_prop_2)
+}
+
+turnout_1998 <- do(10000)*prop_function(resample(turnout))
+confint(turnout_1998, level = 0.95)
+```
+
+The table above represents the difference in the two proportions to a 95% confidence interval regarding those who voted in 1998 who recieved calls versus those who did not recieve calls. The sample proportion of the people who voted in 1998 who did recieve a call is `r round(prop_1, 3)`. The sample proportion of those who voted in 1998 who did not recieve a call is `r round(prop_2, 3)`.
+
+
+## Part B
+
+```{r, echo = FALSE}
+yes_call <- filter(turnout, GOTV_call == 1)
+no_call <- filter(turnout, GOTV_call == 0)
+
+age_diff <- mean(yes_call$AGE) - mean(no_call$AGE)
+vote_diff <- mean(yes_call$voted1996) - mean(no_call$voted1996)
+party_diff <- mean(yes_call$MAJORPTY) - mean(no_call$MAJORPTY)
+
+confound_table <- data.frame(
+  Variable = c("voted1996", "AGE", "MAJORPTY"),
+  Prop_Diff_Call = c(vote_diff, age_diff, party_diff)
+)
+print(confound_table)
+
+basic_model <- lm(voted1998 ~ GOTV_call, data = turnout)
+confound_model <- lm(voted1998 ~ GOTV_call + voted1996 + AGE + MAJORPTY, data = turnout)
+```
+
+The table above shows a difference in proportions of the variables that were not included in the previous part. This difference in proportion was for those who recieved a call versus those who did not.
+
+```{r, echo = FALSE}
+summary(basic_model)
+```
+
+```{r, echo = FALSE}
+summary(confound_model)
+```
+
+## Part C
+
+```{r, echo = FALSE}
+matched <- matchit(GOTV_call ~ voted1996 + AGE + MAJORPTY, data = turnout, method = "nearest", ratio = 5)
+match_data <- match.data(matched)
+
+balance_before <- CreateTableOne(vars = c("voted1996", "AGE", "MAJORPTY", "voted1998"), data = turnout)
+balance_after <- CreateTableOne(vars = c("voted1996", "AGE", "MAJORPTY", "voted1998"), strata = "GOTV_call", data = match_data)
+
+print(balance_before, smd = TRUE)
+print(balance_after, smd = TRUE)
+```
+
+The p-values in treatment and control groups are greater than 0.05. The method of matching was successful in balancing the covariates between each of the groups. Though there was a slight variation in the variables this has little significance when considering the p-value. Any other information on the category voted1998 is negligible.
+
+```{r, echo = FALSE}
+prop_4 <- mean(match_data$GOTV_call == 1 & match_data$voted1998 == 1)
+prop_5 <- mean(match_data$GOTV_call == 0 & match_data$voted1998 == 1)
+
+prop_6 <- prop_4 - prop_5
+
+match_1998 <- do(10000)*prop_function(resample(match_data))
+confint(match_1998, level = 0.95)
+```
+
+The sample proportion of those who did recieve a call who also voted in 1998 is `r round(prop_4, 3)`. The sample proportion of those who did not recieve a call who also voted in 1998 is `r round(prop_5, 3)`. The likelihood of a person voting in the 1998 election was statistically effected by whether they recieved a call from the government or not. This could mean that the call effected the voter turnout in the 1998 election. The government call is highly suspected on having a negative correlation with voter turnout. The unmatched and matched confidence intervals both excluded the value of 0 and were both negative. In conclusion, this has major effects on the the electoral outcomes and the political structure during this time.
+
+# Problem 2
+
+## Part A
+
+```{r, echo = FALSE}
+plot_1 <- ggplot(solder, aes(x = Opening, y = skips)) + geom_boxplot(fill = "red", color = "black") + labs(title = "Opening Size and Number of Skips", x = "Size of Opening of Solder Gun", y = "Number of Skips") + theme_minimal()
+
+
+plot_2 <- ggplot(solder, aes(x = Solder, y = skips)) + geom_boxplot(fill = "blue", color = "black") + labs(title = "Solder Thickness and Number of Skips", x = "Thickness of Alloy Used for Soldering", y = "Number of Skips") + theme_minimal()
+
+
+print(plot_1)
+print(plot_2)
+```
+
+## Part B
+
+```{r, echo = FALSE}
+model <- lm(skips ~ Opening + Solder + Opening:Solder, solder)
+coefficients_table <- summary(model)$coefficients
+conf_intervals <- confint.default(model)
+results <- cbind(coefficients_table, conf_intervals)
+
+print(results)
+```
+
+## Part C
+
+The linear model includes an intercept of 0.393, crucial for its accurate representation. The model details the individual main effects of each variable: "OpeningM" increases skips by 2.407, "OpeningS" by 5.127, and "SoldierThin" by 2.280, when each is considered independently. The model also reveals interaction effects between these variables. Specifically, the interaction between "OpeningM" and "SoldierThin" reduces skips by 0.740, indicating that the combined presence of these two features results in fewer skips than the sum of their separate effects. In contrast, the interaction between "OpeningS" and "SoldierThin" increases skips by 0.653, showing that when both features are present, the overall effect is slightly greater than the additive effects of each feature alone.
+
+## Part D
+
+Based on the analysis, it's advisable to recommend a combination of "OpeningM" and "SoldierThin" thickness to AT&T, as this specific pairing of features is associated with fewer skips due to the interaction effect between these predictors. Specifically, the interaction effect shows a decrease of 0.740 skips, indicating a negative association when these variables interact. This suggests that combining "OpeningM" and "SoldierThin" leads to a reduction in the number of skips, potentially simplifying the manufacturing process due to fewer steps being required.
+
